@@ -1,0 +1,66 @@
+name: CI/CD Pipeline - Segurança e Deploy na EC2
+
+on:
+  push:
+    branches:
+      
+main
+
+jobs:
+  # ---------------------------------------------------
+  # JOB 1: SCANNER DE SEGURANÇA (TRIVY)
+  # ---------------------------------------------------
+  security_scan:
+    name: Scanner de Segurança
+    runs-on: ubuntu-latest
+    steps:
+      
+name: Checkout do código
+      uses: actions/checkout@v4
+
+      
+name: Escanear código com Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        exit-code: '1' # Falha a pipeline se achar vulnerabilidades críticas
+        ignore-unfixed: true
+        severity: 'CRITICAL,HIGH'
+
+  # ---------------------------------------------------
+  # JOB 2: DEPLOY PARA A AWS (NGINX)
+  # ---------------------------------------------------
+  deploy:
+    name: Deploy na EC2
+    needs: security_scan # Só faz o deploy se a segurança passar
+    runs-on: ubuntu-latest
+    steps:
+      
+name: Checkout do código
+      uses: actions/checkout@v4
+
+      
+name: Enviar arquivos HTML/CSS/JS para a EC2
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "." 
+        target: "/var/www/html" # Pasta pública do Nginx na sua EC2
+        rm: true # Limpa o conteúdo antigo antes de enviar o novo
+
+      
+name: Reiniciar o Nginx
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          sudo systemctl restart nginx
+          echo "Deploy finalizado! O site já está disponível no IP público."
+ 
+.github/workflows/deploy.yml
