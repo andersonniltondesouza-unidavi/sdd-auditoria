@@ -19,40 +19,41 @@ jobs:
       - name: Escanear código com Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'             # Escaneia o código-fonte
-          scan-ref: '.'               # Pasta raiz do projeto
-          format: 'table'             # Mostra os resultados em formato de tabela no log
-          exit-code: '1'              # Se encontrar vulnerabilidade, FALHA a pipeline
-          ignore-unfixed: true        # Ignora vulnerabilidades que ainda não tem correção disponível
-          severity: 'CRITICAL,HIGH'   # Bloqueia o deploy para falhas Críticas e Altas
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
   # ---------------------------------------------------
   # JOB 2: DEPLOY NA INSTÂNCIA EC2 (NGINX)
   # ---------------------------------------------------
   deploy:
     name: Deploy na EC2
-    needs: security_scan # OBRIGA que o scan de segurança passe antes de rodar
+    needs: security_scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Copiar arquivos para a EC2 (SCP)
+      - name: Copiar arquivos temporariamente (SCP)
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "." # Copia todos os arquivos do repositório
-          target: "/var/www/html" # Pasta pública do Nginx
-          rm: true # Remove os arquivos antigos antes de colar o projeto atualizado
+          source: "."
+          target: "/home/ubuntu/site"
+          rm: true 
 
-      - name: Reiniciar Nginx na EC2 (SSH)
+      - name: Mover para o Nginx e Reiniciar (SSH)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            sudo cp -r /home/ubuntu/site/* /var/www/html/
             sudo systemctl restart nginx
-            echo "Deploy estático finalizado e Nginx reiniciado com sucesso!"
+            echo "Deploy estático finalizado com sucesso!"
